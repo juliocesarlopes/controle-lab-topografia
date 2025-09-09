@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendamento de Equipamentos - Laboratório de Topografia</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+        const supabaseUrl = 'https://ehgsgmrcwtxgvqkesmil.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoZ3NnbXJjd3R4Z3Zxa2VzbWlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MTE4MjMsImV4cCI6MjA3MjQ4NzgyM30.g8EAsvfSXsEfPaHOUlrcuk_HK1p_5Lot4YBQ5_mTBQM';
+        
+        window.supabase = createClient(supabaseUrl, supabaseKey);
+    </script>
+    <style>
+        .calendar-day { position: relative; }
+        .day-indicator { position: absolute; bottom: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; }
+        .bg-aula { background-color: #4f46e5; }
+        .bg-agendamento { background-color: #db2777; }
+        #calendar-tooltip {
+            position: fixed; display: none; padding: 8px 12px;
+            background-color: #333; color: white; border-radius: 6px;
+            font-size: 0.875rem; z-index: 100; pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+    
+    <div id="calendar-tooltip"></div>
+    
+    <div id="agenda-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl leading-6 font-medium text-gray-900">Agenda de Ocupação</h3>
+                <button id="agenda-modal-close" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <div id="calendar-container" class="p-2"></div>
+                     <div class="mt-4 text-xs flex justify-end space-x-4">
+                        <span class="flex items-center"><span class="day-indicator bg-aula mr-2"></span> Aulas (passe o mouse)</span>
+                        <span class="flex items-center"><span class="day-indicator bg-agendamento mr-2"></span> Equip. Agendado</span>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-3 text-gray-600">Próximos Agendamentos</h4>
+                    <div id="lista-agendamentos-aprovados" class="space-y-2 max-h-96 overflow-y-auto">
+                        <p class="text-gray-500">A carregar...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="flex justify-between items-center mb-8 pb-4 border-b border-gray-200">
+            <!-- MODIFICAÇÃO: Logo adicionada aqui -->
+            <div class="flex items-center gap-4">
+                <img src="https://i.postimg.cc/Cxs1MbYy/selo-115-anos-CEFET-RGB.png" alt="Logo CEFET-MG" class="h-16 w-auto">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-700">Laboratório de Topografia</h1>
+                    <p class="text-gray-500 text-sm">CEFET-MG Unidade Curvelo</p>
+                </div>
+            </div>
+            <nav class="flex items-center space-x-6">
+                <a href="#" class="text-indigo-600 font-semibold border-b-2 border-indigo-600 pb-1">Área do Aluno</a>
+                <a href="login.html" class="text-gray-600 hover:text-indigo-600 transition-colors font-medium">Área do Professor / Admin</a>
+            </nav>
+        </header>
+
+        <main class="max-w-2xl mx-auto">
+            <div class="text-center mb-8">
+                 <button id="open-agenda-btn" class="bg-white hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 border border-gray-300 rounded-lg shadow-sm">
+                    Ver Agenda de Ocupação
+                </button>
+            </div>
+
+            <div class="bg-white p-8 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-center mb-6 text-gray-700">Solicitação de Equipamentos</h2>
+                <form id="form-agendamento" class="space-y-6">
+                    <div id="mensagem-sucesso" class="hidden p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
+                        Solicitação enviada com sucesso! Aguarde a aprovação.
+                    </div>
+                    <div id="mensagem-erro" class="hidden p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert"></div>
+
+                    <div class="p-4 border rounded-md bg-gray-50">
+                        <p class="text-sm font-medium text-gray-700 mb-3">1. Selecione o período desejado:</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="data_inicio" class="block text-sm font-medium text-gray-700">Retirada*</label>
+                                <input type="datetime-local" id="data_inicio" name="data_inicio" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                            </div>
+                            <div>
+                                <label for="data_fim_prevista" class="block text-sm font-medium text-gray-700">Devolução*</label>
+                                <input type="datetime-local" id="data_fim_prevista" name="data_fim_prevista" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                            </div>
+                        </div>
+                        <button type="button" id="verificar-disponibilidade-btn" class="mt-4 w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md">
+                            Verificar Equipamentos Disponíveis
+                        </button>
+                    </div>
+
+                    <div id="bloco-equipamentos" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700">2. Equipamentos Disponíveis no Período*</label>
+                        <div id="lista-equipamentos-checkbox" class="mt-2 border border-gray-300 rounded-md p-4 max-h-60 overflow-y-auto space-y-2">
+                            <p class="text-gray-500">Clique em "Verificar Equipamentos Disponíveis" acima.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="nome_solicitante" class="block text-sm font-medium text-gray-700">Seu Nome Completo*</label>
+                            <input type="text" id="nome_solicitante" name="nome_solicitante" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                        <div>
+                            <label for="telefone_solicitante" class="block text-sm font-medium text-gray-700">Seu Telefone*</label>
+                            <input type="tel" id="telefone_solicitante" name="telefone_solicitante" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="integrantes_grupo" class="block text-sm font-medium text-gray-700">Outros Integrantes do Grupo (se houver)</label>
+                        <input type="text" id="integrantes_grupo" name="integrantes_grupo" placeholder="Separe os nomes por vírgula" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    <div>
+                        <label for="motivo_uso" class="block text-sm font-medium text-gray-700">Motivo da Solicitação*</label>
+                        <textarea id="motivo_uso" name="motivo_uso" rows="3" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                    </div>
+                    <div>
+                        <label for="tipo_uso" class="block text-sm font-medium text-gray-700">Tipo de Uso*</label>
+                        <select id="tipo_uso" name="tipo_uso" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                            <option>Uso Interno</option>
+                            <option>Uso Externo</option>
+                        </select>
+                    </div>
+                    <div id="campo-local-destino" class="hidden">
+                        <label for="local_destino" class="block text-sm font-medium text-gray-700">Local de Destino (para Uso Externo)*</label>
+                        <input type="text" id="local_destino" name="local_destino" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                    </div>
+                    
+                    <button type="submit" id="enviar-solicitacao-btn" class="w-full bg-gray-400 text-white font-bold py-2 px-4 rounded-md cursor-not-allowed" disabled>
+                        Enviar Solicitação
+                    </button>
+                </div>
+            </form>
+        </main>
+        </div>
+
+    <script type="module">
+        const supabase = window.supabase;
+        const formAgendamento = document.getElementById('form-agendamento');
+        const listaEquipamentosDiv = document.getElementById('lista-equipamentos-checkbox');
+        const mensagemSucesso = document.getElementById('mensagem-sucesso');
+        const mensagemErro = document.getElementById('mensagem-erro');
+        
+        const verificarBtn = document.getElementById('verificar-disponibilidade-btn');
+        const blocoEquipamentos = document.getElementById('bloco-equipamentos');
+        const enviarBtn = document.getElementById('enviar-solicitacao-btn');
+        const modal = document.getElementById('agenda-modal');
+        const tooltip = document.getElementById('calendar-tooltip');
+
+        function setupAgendaModal(aulas, agendamentos) {
+            const openBtn = document.getElementById('open-agenda-btn');
+            const closeBtn = document.getElementById('agenda-modal-close');
+            
+            openBtn.onclick = () => modal.classList.remove('hidden');
+            closeBtn.onclick = () => modal.classList.add('hidden');
+            window.onclick = (event) => { if (event.target == modal) { modal.classList.add('hidden'); }};
+            
+            renderMonthlyCalendar(new Date().getFullYear(), new Date().getMonth(), aulas, agendamentos);
+            renderAgendamentosList(agendamentos);
+        }
+
+        function renderMonthlyCalendar(year, month, aulas, agendamentos) {
+            const container = document.getElementById('calendar-container');
+            const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const daysOfWeek = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+            const firstDay = new Date(year, month).getDay();
+            const daysInMonth = 32 - new Date(year, month, 32).getDate();
+
+            let table = `<div class="text-center mb-2 font-bold">${monthNames[month]} ${year}</div><table class="w-full text-center text-sm border-collapse"><thead><tr>`;
+            daysOfWeek.forEach(day => table += `<th class="p-1 border">${day}</th>`);
+            table += '</tr></thead><tbody><tr>';
+
+            for (let i = 0; i < firstDay; i++) { table += '<td class="border"></td>'; }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const currentDate = new Date(year, month, day);
+                const dayOfWeek = currentDate.getDay();
+                const aulasDoDia = aulas.filter(a => a.dia_semana === ((dayOfWeek + 6) % 7));
+                const hasAgendamento = agendamentos.some(ag => {
+                    const inicio = new Date(ag.data_inicio); inicio.setHours(0,0,0,0);
+                    const fim = new Date(ag.data_fim_prevista); fim.setHours(23,59,59,999);
+                    return currentDate >= inicio && currentDate <= fim;
+                });
+
+                if ((day + firstDay - 1) % 7 === 0 && day > 1) { table += '</tr><tr>'; }
+                
+                let tooltipContent = '';
+                if (aulasDoDia.length > 0) {
+                    tooltipContent = aulasDoDia.map(a => `<strong>${a.turma}</strong><br>${a.hora_inicio} - ${a.hora_fim}<br>${a.nome_professor}`).join('<hr class="my-1">');
+                }
+
+                table += `<td class="border p-2 h-12 align-top calendar-day" ${tooltipContent ? `data-tooltip="${tooltipContent}"` : ''}>
+                            <span>${day}</span>
+                            ${aulasDoDia.length > 0 ? '<div class="day-indicator bg-aula"></div>' : ''}
+                            ${hasAgendamento ? '<div class="day-indicator bg-agendamento mt-1"></div>' : ''}
+                          </td>`;
+            }
+            table += '</tr></tbody></table>';
+            container.innerHTML = table;
+            setupTooltipEvents();
+        }
+
+        function setupTooltipEvents() {
+            const daysWithTooltip = document.querySelectorAll('[data-tooltip]');
+            daysWithTooltip.forEach(day => {
+                day.addEventListener('mousemove', (e) => {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = `${e.clientX + 15}px`;
+                    tooltip.style.top = `${e.clientY + 15}px`;
+                    tooltip.innerHTML = day.getAttribute('data-tooltip');
+                });
+                day.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+            });
+        }
+
+        function renderAgendamentosList(agendamentos) {
+            const listaAgendamentosDiv = document.getElementById('lista-agendamentos-aprovados');
+            if (agendamentos.length === 0) {
+                 listaAgendamentosDiv.innerHTML = `<p class="text-gray-500">Nenhum empréstimo agendado.</p>`; return;
+            }
+            listaAgendamentosDiv.innerHTML = '';
+            agendamentos.forEach(ag => {
+                const item = document.createElement('div');
+                item.className = 'p-3 bg-gray-50 rounded-md border text-sm';
+                const equipamentos = ag.agendamento_equipamentos.map(item => item.equipamentos?.nome || 'N/A').join(', ');
+                const inicio = new Date(ag.data_inicio).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+                const fim = new Date(ag.data_fim_prevista).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+                item.innerHTML = `<p><strong>Equipamento(s):</strong> ${equipamentos}</p><p><strong>Período:</strong> De ${inicio} até ${fim}</p>`;
+                listaAgendamentosDiv.appendChild(item);
+            });
+        }
+        
+        async function carregarDadosAgenda() {
+            const hoje = new Date().toISOString();
+            const [aulasResult, agendamentosResult] = await Promise.all([
+                supabase.from('aulas_fixas').select('*'),
+                supabase.from('agendamentos').select('data_inicio, data_fim_prevista, agendamento_equipamentos(equipamentos(nome))')
+                    .in('status', ['Aprovado', 'Retirado']).gte('data_fim_prevista', hoje).order('data_inicio', { ascending: true })
+            ]);
+            const aulas = aulasResult.data || [];
+            const agendamentos = agendamentosResult.data || [];
+            if (aulasResult.error) console.error("Erro ao buscar aulas:", aulasResult.error);
+            if (agendamentosResult.error) console.error("Erro ao buscar agendamentos:", agendamentosResult.error);
+            setupAgendaModal(aulas, agendamentos);
+        }
+
+        function mostrarErro(mensagem) {
+            mensagemErro.textContent = mensagem;
+            mensagemErro.classList.remove('hidden');
+        }
+
+        function esconderMensagens() {
+            mensagemSucesso.classList.add('hidden');
+            mensagemErro.classList.add('hidden');
+        }
+
+        async function verificarDisponibilidade() {
+            esconderMensagens();
+            const dataInicio = formAgendamento.data_inicio.value;
+            const dataFim = formAgendamento.data_fim_prevista.value;
+
+            if (!dataInicio || !dataFim) { mostrarErro("Por favor, selecione a data de retirada e de devolução."); return; }
+            if (new Date(dataFim) <= new Date(dataInicio)) { mostrarErro("A data de devolução deve ser posterior à data de retirada."); return; }
+
+            verificarBtn.disabled = true;
+            verificarBtn.textContent = 'A verificar...';
+            listaEquipamentosDiv.innerHTML = '<p class="text-gray-500">A procurar equipamentos disponíveis...</p>';
+            blocoEquipamentos.classList.remove('hidden');
+
+            try {
+                const { data: agendamentosConflitantes, error: conflitoError } = await supabase
+                    .from('agendamentos')
+                    .select('agendamento_equipamentos(equipamento_id)')
+                    .in('status', ['Aprovado', 'Retirado'])
+                    .lte('data_inicio', dataFim) 
+                    .gte('data_fim_prevista', dataInicio);
+                
+                if (conflitoError) throw conflitoError;
+
+                const idsIndisponiveis = agendamentosConflitantes.flatMap(ag => ag.agendamento_equipamentos).map(item => item.equipamento_id);
+                const { data: todosDisponiveis, error: equipError } = await supabase.from('equipamentos').select('id, nome, modelo').eq('status', 'Disponível');
+                if (equipError) throw equipError;
+                
+                const equipamentosRealmenteDisponiveis = todosDisponiveis.filter(equip => !idsIndisponiveis.includes(equip.id));
+
+                if (equipamentosRealmenteDisponiveis.length === 0) {
+                    listaEquipamentosDiv.innerHTML = '<p class="text-gray-500">Nenhum equipamento disponível para o período selecionado.</p>';
+                    enviarBtn.disabled = true;
+                    enviarBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                    enviarBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                    return;
+                }
+
+                listaEquipamentosDiv.innerHTML = '';
+                equipamentosRealmenteDisponiveis.forEach(equip => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center';
+                    div.innerHTML = `<input id="equip-${equip.id}" name="equipamento" value="${equip.id}" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"><label for="equip-${equip.id}" class="ml-3 block text-sm text-gray-900">${equip.nome} (${equip.modelo || 'Sem modelo'})</label>`;
+                    listaEquipamentosDiv.appendChild(div);
+                });
+                
+                enviarBtn.disabled = false;
+                enviarBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                enviarBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+
+            } catch (error) {
+                console.error('Erro ao verificar disponibilidade:', error);
+                mostrarErro("Não foi possível verificar a disponibilidade. Tente novamente.");
+            } finally {
+                verificarBtn.disabled = false;
+                verificarBtn.textContent = 'Verificar Equipamentos Disponíveis';
+            }
+        }
+
+        async function enviarSolicitacao(event) {
+            event.preventDefault();
+            esconderMensagens();
+            const botaoEnviar = formAgendamento.querySelector('button[type="submit"]');
+            botaoEnviar.disabled = true;
+            botaoEnviar.textContent = 'A enviar...';
+
+            try {
+                const equipamentosSelecionados = Array.from(document.querySelectorAll('input[name="equipamento"]:checked')).map(cb => parseInt(cb.value, 10));
+                
+                if (equipamentosSelecionados.length === 0) { throw new Error('Por favor, selecione pelo menos um equipamento.'); }
+                
+                const { data, error } = await supabase.rpc('criar_agendamento_com_equipamentos', {
+                    equipamento_ids: equipamentosSelecionados,
+                    nome_solicitante: formAgendamento.nome_solicitante.value,
+                    telefone_solicitante: formAgendamento.telefone_solicitante.value,
+                    integrantes_grupo: formAgendamento.integrantes_grupo.value,
+                    motivo_uso: formAgendamento.motivo_uso.value,
+                    tipo_uso: formAgendamento.tipo_uso.value,
+                    local_destino: formAgendamento.local_destino.value || null,
+                    data_inicio: new Date(formAgendamento.data_inicio.value).toISOString(),
+                    data_fim_prevista: new Date(formAgendamento.data_fim_prevista.value).toISOString()
+                });
+
+                if (error) { throw error; } 
+                
+                mensagemSucesso.classList.remove('hidden');
+                formAgendamento.reset();
+                blocoEquipamentos.classList.add('hidden');
+                enviarBtn.disabled = true;
+                enviarBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                enviarBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                carregarDadosAgenda();
+
+            } catch (error) {
+                console.error('Erro detalhado do Supabase:', error);
+                mostrarErro('Ocorreu um erro ao enviar a sua solicitação. Verifique os dados e tente novamente.');
+            } finally {
+                botaoEnviar.disabled = false;
+                botaoEnviar.textContent = 'Enviar Solicitação';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarDadosAgenda();
+            verificarBtn.addEventListener('click', verificarDisponibilidade);
+            formAgendamento.addEventListener('submit', enviarSolicitacao);
+            
+            document.getElementById('tipo_uso').addEventListener('change', (e) => {
+                const campoDestino = document.getElementById('campo-local-destino');
+                if (e.target.value === 'Uso Externo') {
+                    campoDestino.classList.remove('hidden');
+                    document.getElementById('local_destino').required = true;
+                } else {
+                    campoDestino.classList.add('hidden');
+                     document.getElementById('local_destino').required = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

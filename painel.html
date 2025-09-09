@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle - Laboratório de Topografia</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+    
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+        const supabaseUrl = 'https://ehgsgmrcwtxgvqkesmil.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoZ3NnbXJjd3R4Z3Zxa2VzbWlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MTE4MjMsImV4cCI6MjA3MjQ4NzgyM30.g8EAsvfSXsEfPaHOUlrcuk_HK1p_5Lot4YBQ5_mTBQM';
+        
+        window.supabase = createClient(supabaseUrl, supabaseKey);
+    </script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <p class="text-xl">A verificar permissões...</p>
+    </div>
+    
+    <div class="container mx-auto p-4 md:p-8 hidden" id="main-content">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-700">Painel de Controle</h1>
+                <p class="text-gray-500">Laboratório de Topografia - CEFET Curvelo</p>
+            </div>
+            <div>
+                <a href="index.html" target="_blank" class="text-indigo-600 hover:text-indigo-800 mr-4">Ver Página Pública</a>
+                <button id="botao-logout" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md">Sair</button>
+            </div>
+        </header>
+
+        <div class="mb-8">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button id="tab-agendamentos" class="tab-button border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Agendamentos</button>
+                    <button id="tab-inventario" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Inventário</button>
+                    <button id="tab-agenda-aulas" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Agenda de Aulas</button>
+                    <button id="tab-usuarios" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Gerenciar Usuários</button>
+                </nav>
+            </div>
+        </div>
+
+        <div id="tab-content-agendamentos" class="tab-content space-y-8">
+             <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Solicitações de Agendamento Pendentes</h2>
+                <div class="overflow-x-auto">
+                    <table id="tabela-agendamentos" class="w-full text-left">
+                        <thead>
+                            <tr class="bg-gray-50 border-b"><th class="p-3 font-semibold">Equipamentos Solicitados</th><th class="p-3 font-semibold">Solicitante</th><th class="p-3 font-semibold">Período Previsto</th><th class="p-3 font-semibold text-center">Ações</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <p id="status-agendamentos" class="mt-4 text-center text-gray-500"></p>
+                </div>
+            </section>
+            <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Gerir Empréstimos e Histórico</h2>
+                <div class="overflow-x-auto">
+                    <table id="tabela-historico" class="w-full text-left">
+                        <thead>
+                            <tr class="bg-gray-50 border-b"><th class="p-3 font-semibold">Equipamentos Solicitados</th><th class="p-3 font-semibold">Solicitante</th><th class="p-3 font-semibold">Período Previsto</th><th class="p-3 font-semibold">Status</th><th class="p-3 font-semibold text-center">Ações</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <p id="status-historico" class="mt-4 text-center text-gray-500"></p>
+                </div>
+            </section>
+        </div>
+
+        <div id="tab-content-inventario" class="tab-content hidden space-y-8">
+            <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <section id="form-cadastro-container" class="lg:col-span-1 bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4">Adicionar Novo Equipamento</h2>
+                    <form id="form-cadastro" class="space-y-4">
+                        <div><label for="nome" class="block text-sm font-medium text-gray-700">Nome do Equipamento*</label><input type="text" id="nome" name="nome" required class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                        <div><label for="modelo" class="block text-sm font-medium text-gray-700">Modelo</label><input type="text" id="modelo" name="modelo" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                        <div><label for="numero_serie" class="block text-sm font-medium text-gray-700">Nº de Série*</label><input type="text" id="numero_serie" name="numero_serie" required class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                        <div><label for="data_ultima_calibracao" class="block text-sm font-medium text-gray-700">Última Calibração</label><input type="text" id="data_ultima_calibracao" name="data_ultima_calibracao" placeholder="AAAA-MM-DD" class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md">Salvar Equipamento</button>
+                    </form>
+                </section>
+                <section id="tabela-equipamentos-container" class="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Inventário de Equipamentos</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="tabela-equipamentos" class="w-full text-left">
+                            <thead>
+                                <tr class="bg-gray-50 border-b"><th class="p-3 font-semibold">Nome</th><th class="p-3 font-semibold">Modelo</th><th class="p-3 font-semibold">Nº de Série</th><th class="p-3 font-semibold">Status</th><th class="p-3 font-semibold">Última Calibração</th><th class="p-3 font-semibold text-center">Ações</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        <p id="status-carregamento" class="mt-4 text-center text-gray-500"></p>
+                    </div>
+                </section>
+            </main>
+        </div>
+        
+        <div id="tab-content-agenda-aulas" class="tab-content hidden space-y-8">
+            <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Agenda de Aulas Fixas da Semana</h2>
+                <p class="text-sm text-gray-500 mb-4">Clique num horário vago para adicionar uma aula.</p>
+                <div class="overflow-x-auto">
+                    <table id="tabela-agenda-semanal" class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="p-2 border font-semibold w-1/6">Horário</th>
+                                <th class="p-2 border font-semibold">Segunda-feira</th>
+                                <th class="p-2 border font-semibold">Terça-feira</th>
+                                <th class="p-2 border font-semibold">Quarta-feira</th>
+                                <th class="p-2 border font-semibold">Quinta-feira</th>
+                                <th class="p-2 border font-semibold">Sexta-feira</th>
+                                <th class="p-2 border font-semibold">Sábado</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div id="tab-content-usuarios" class="tab-content hidden space-y-8">
+             <section class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Gerenciar Usuários do Painel</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-lg font-medium mb-2">Criar Novo Usuário</h3>
+                        <form id="form-criar-usuario" class="space-y-4">
+                            <div><label for="new-user-email" class="block text-sm font-medium text-gray-700">Email do Usuário*</label><input type="email" id="new-user-email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
+                            <div><label for="new-user-password" class="block text-sm font-medium text-gray-700">Senha Temporária*</label><input type="password" id="new-user-password" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
+                            <div><label for="new-user-role" class="block text-sm font-medium text-gray-700">Função*</label><select id="new-user-role" class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm"><option value="professor">Professor</option><option value="admin">Administrador</option></select></div>
+                            <button type="submit" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md">Criar Usuário</button>
+                        </form>
+                         <p id="user-creation-status" class="mt-4 text-sm"></p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium mb-2">Usuários Cadastrados</h3>
+                        <div class="overflow-x-auto">
+                            <table id="tabela-usuarios" class="w-full text-left">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b"><th class="p-3 font-semibold">Email</th><th class="p-3 font-semibold">Função</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                            <p id="status-usuarios" class="mt-4 text-center text-gray-500"></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div id="modal-confirmacao" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Excluir Equipamento</h3>
+                <div class="mt-2 px-7 py-3"> <p id="modal-texto" class="text-sm text-gray-500">Tem a certeza?</p> </div>
+                <div class="items-center px-4 py-3 space-x-4">
+                    <button id="modal-botao-cancelar" class="px-4 py-2 bg-gray-200 text-gray-900 rounded-md w-auto hover:bg-gray-300">Cancelar</button>
+                    <button id="modal-botao-confirmar" class="px-4 py-2 bg-red-500 text-white rounded-md w-auto hover:bg-red-700">Sim, Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="modal-edicao" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <h3 class="text-xl leading-6 font-medium text-gray-900 mb-4">Editar Equipamento</h3>
+            <form id="form-edicao" class="space-y-4">
+                <input type="hidden" id="edit-id" name="id">
+                <div>
+                    <label for="edit-nome" class="block text-sm font-medium text-gray-700">Nome do Equipamento*</label>
+                    <input type="text" id="edit-nome" name="nome" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="edit-modelo" class="block text-sm font-medium text-gray-700">Modelo</label>
+                    <input type="text" id="edit-modelo" name="modelo" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="edit-numero_serie" class="block text-sm font-medium text-gray-700">Nº de Série*</label>
+                    <input type="text" id="edit-numero_serie" name="numero_serie" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="edit-status" class="block text-sm font-medium text-gray-700">Status</label>
+                    <select id="edit-status" name="status" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        <option>Disponível</option>
+                        <option>Em Uso</option>
+                        <option>Em Manutenção</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-data_ultima_calibracao" class="block text-sm font-medium text-gray-700">Data da Última Calibração</label>
+                    <input type="date" id="edit-data_ultima_calibracao" name="data_ultima_calibracao" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div class="items-center pt-3 space-x-4 flex justify-end">
+                    <button id="modal-edicao-botao-cancelar" type="button" class="px-4 py-2 bg-gray-200 text-gray-900 rounded-md w-auto hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md w-auto hover:bg-indigo-700">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="modal-detalhes" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl leading-6 font-medium text-gray-900">Detalhes da Solicitação</h3>
+                <button id="modal-detalhes-botao-fechar" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="detalhes-conteudo" class="text-sm text-gray-700 space-y-3"></div>
+        </div>
+    </div>
+    <div id="modal-agenda" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <h3 class="text-xl leading-6 font-medium text-gray-900 mb-4" id="modal-agenda-titulo">Agendar Aula</h3>
+            <form id="form-agenda" class="space-y-4">
+                <input type="hidden" id="agenda-dia_semana">
+                <input type="hidden" id="agenda-hora_inicio">
+                <input type="hidden" id="agenda-id">
+                <div><label for="agenda-turma" class="block text-sm font-medium text-gray-700">Nome da Turma*</label><input type="text" id="agenda-turma" required class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                <div><label for="agenda-professor" class="block text-sm font-medium text-gray-700">Professor Responsável*</label><input type="text" id="agenda-professor" required class="mt-1 block w-full px-3 py-2 border rounded-md"></div>
+                <div class="items-center pt-3 flex justify-end space-x-4">
+                    <button id="modal-agenda-botao-excluir" type="button" class="px-4 py-2 bg-red-500 text-white rounded-md w-auto hover:bg-red-700 hidden">Excluir</button>
+                    <button id="modal-agenda-botao-cancelar" type="button" class="px-4 py-2 bg-gray-200 text-gray-900 rounded-md w-auto hover:bg-gray-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md w-auto hover:bg-indigo-700">Salvar Aula</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        const supabase = window.supabase;
+        let idParaExcluir = null;
+        let idParaEditar = null;
+        let userRole = null; 
+
+        async function gerarTermoPDF(agendamento) {
+            try {
+                const { PDFDocument } = PDFLib;
+                const formUrl = './formulario_saida.pdf';
+                const formPdfBytes = await fetch(formUrl).then(res => res.arrayBuffer());
+                const pdfDoc = await PDFDocument.load(formPdfBytes);
+                const form = pdfDoc.getForm();
+
+                const equipamentosText = agendamento.agendamento_equipamentos.map(item => {
+                    return `${item.equipamentos?.nome || 'N/A'} (Nº Série: ${item.equipamentos?.numero_serie || 'N/A'})`;
+                }).join('; ');
+
+                form.getTextField('unidade_lotacao').setText('CEFET-MG / Unidade Curvelo');
+                form.getTextField('especificacao_bem').setText(equipamentosText);
+                
+                if (agendamento.agendamento_equipamentos.length > 0) {
+                    form.getTextField('num_patrimonio').setText(agendamento.agendamento_equipamentos[0].equipamentos?.numero_serie || 'N/A');
+                }
+                
+                const periodo = `${new Date(agendamento.data_inicio).toLocaleDateString('pt-BR')} a ${new Date(agendamento.data_fim_prevista).toLocaleDateString('pt-BR')}`;
+                form.getTextField('periodo_saida').setText(periodo);
+                
+                form.getTextField('local_destino').setText(agendamento.local_destino || 'Uso Interno');
+                form.getTextField('justificativa').setText(agendamento.motivo_uso);
+                form.getTextField('nome_responsavel').setText(agendamento.nome_solicitante);
+                form.getTextField('matricula_cpf').setText('Não coletado'); 
+                
+                const hoje = new Date().toLocaleDateString('pt-BR');
+                form.getTextField('data_hoje').setText(hoje);
+
+                form.flatten();
+                const pdfBytes = await pdfDoc.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `Termo_Saida_${agendamento.nome_solicitante.replace(/ /g, '_')}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error("Erro ao gerar o PDF:", error);
+                alert("Não foi possível gerar o Termo de Saída. Verifique se o arquivo 'formulario_saida.pdf' está na pasta correta.");
+            }
+        }
+
+        async function checkAuthAndRole() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'login.html';
+                return;
+            }
+            const user = session.user;
+            const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+            if (profileError && profileError.code === 'PGRST116') {
+                userRole = 'admin'; 
+                await supabase.from('profiles').insert({ id: user.id, email: user.email, role: 'admin' });
+            } else if (profileError) {
+                console.error('Erro ao buscar perfil do usuário:', profileError);
+                await supabase.auth.signOut(); window.location.href = 'login.html'; return;
+            } else {
+                userRole = profile.role;
+            }
+            setupUIForRole();
+            document.getElementById('loading-overlay').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+        }
+        
+        function setupUIForRole() {
+            if (userRole !== 'admin') {
+                document.getElementById('tab-usuarios').style.display = 'none';
+                document.getElementById('tab-agenda-aulas').style.display = 'none';
+                const formCadastroContainer = document.getElementById('form-cadastro-container');
+                if(formCadastroContainer) {
+                    formCadastroContainer.style.display = 'none';
+                    document.getElementById('tabela-equipamentos-container').classList.remove('lg:col-span-2');
+                    document.getElementById('tabela-equipamentos-container').classList.add('lg:col-span-3');
+                }
+            }
+        }
+
+        async function carregarEquipamentos() {
+            const tabelaCorpo = document.getElementById('tabela-equipamentos').querySelector('tbody');
+            const statusCarregamento = document.getElementById('status-carregamento');
+            tabelaCorpo.innerHTML = '';
+            statusCarregamento.textContent = 'A carregar equipamentos...';
+            const { data, error } = await supabase.from('equipamentos').select('*').order('nome', { ascending: true });
+            if (error) {
+                console.error('Erro ao procurar equipamentos:', error);
+                statusCarregamento.textContent = 'Erro ao carregar equipamentos.';
+                return;
+            }
+            if (data.length === 0) {
+                statusCarregamento.textContent = 'Nenhum equipamento cadastrado.';
+            } else {
+                statusCarregamento.textContent = '';
+                data.forEach(equipamento => {
+                    const linha = document.createElement('tr');
+                    linha.className = 'border-b';
+                    const equipamentoDataString = JSON.stringify(equipamento).replace(/'/g, "&apos;");
+                    let acoesHTML = '-';
+                    if (userRole === 'admin') {
+                        acoesHTML = `
+                            <div class="flex justify-center items-center space-x-2">
+                                <button data-action="edit" data-equipamento='${equipamentoDataString}' class="text-blue-500 hover:text-blue-700 transition-colors" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg></button>
+                                <button data-action="delete" data-id="${equipamento.id}" data-nome="${equipamento.nome.replace(/'/g, "&apos;")}" class="text-red-500 hover:text-red-700 transition-colors" title="Excluir"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button>
+                            </div>
+                        `;
+                    }
+                    linha.innerHTML = `
+                        <td class="p-3">${equipamento.nome}</td>
+                        <td class="p-3">${equipamento.modelo || 'N/A'}</td>
+                        <td class="p-3">${equipamento.numero_serie}</td>
+                        <td class="p-3"><span class="px-2 py-1 text-sm rounded-full ${equipamento.status === 'Disponível' ? 'bg-green-200 text-green-800' : equipamento.status === 'Em Uso' ? 'bg-orange-200 text-orange-800' : 'bg-yellow-200 text-yellow-800'}">${equipamento.status}</span></td>
+                        <td class="p-3">${equipamento.data_ultima_calibracao ? new Date(equipamento.data_ultima_calibracao).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}</td>
+                        <td class="p-3 text-center">${acoesHTML}</td>
+                    `;
+                    tabelaCorpo.appendChild(linha);
+                });
+            }
+        }
+        
+        async function carregarAgendamentos() {
+            const tabelaCorpo = document.getElementById('tabela-agendamentos').querySelector('tbody');
+            const statusAgendamentos = document.getElementById('status-agendamentos');
+            tabelaCorpo.innerHTML = '';
+            statusAgendamentos.textContent = 'A carregar solicitações...';
+            const { data, error } = await supabase.from('agendamentos').select(`*, agendamento_equipamentos(*, equipamentos(*))`).eq('status', 'Pendente').order('data_inicio', { ascending: true });
+            if (error) { console.error('Erro ao procurar agendamentos pendentes:', error); statusAgendamentos.textContent = 'Erro ao carregar agendamentos.'; return; }
+            if (data.length === 0) {
+                statusAgendamentos.textContent = 'Nenhuma solicitação pendente.';
+            } else {
+                statusAgendamentos.textContent = '';
+                data.forEach(agendamento => {
+                    const linha = document.createElement('tr');
+                    linha.className = 'border-b';
+                    const equipamentosHtml = agendamento.agendamento_equipamentos.map(item => `<li>${item.equipamentos?.nome || 'Equipamento não encontrado'}</li>`).join('');
+                    let acoesHTML = `<button data-action="details" class="text-gray-500 hover:text-gray-700" title="Ver Detalhes"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg></button>`;
+                    if (userRole === 'admin' || userRole === 'professor') {
+                        acoesHTML += `<button data-action="approve" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600">Aprovar</button> <button data-action="deny" class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600">Negar</button>`;
+                    }
+                    linha.innerHTML = `
+                        <td class="p-3"><ul class="list-disc list-inside text-sm">${equipamentosHtml}</ul></td>
+                        <td class="p-3">${agendamento.nome_solicitante}</td>
+                        <td class="p-3">${new Date(agendamento.data_inicio).toLocaleDateString('pt-BR')} a ${new Date(agendamento.data_fim_prevista).toLocaleDateString('pt-BR')}</td>
+                        <td class="p-3 text-center"><div class="flex justify-center items-center space-x-2">${acoesHTML}</div></td>`;
+                    linha.dataset.agendamento = JSON.stringify(agendamento);
+                    tabelaCorpo.appendChild(linha);
+                });
+            }
+        }
+        
+        async function carregarHistorico() {
+            const tabelaCorpo = document.getElementById('tabela-historico').querySelector('tbody');
+            const statusHistorico = document.getElementById('status-historico');
+            tabelaCorpo.innerHTML = '';
+            statusHistorico.textContent = 'A carregar histórico...';
+            const { data, error } = await supabase.from('agendamentos').select(`*, agendamento_equipamentos(*, equipamentos(*))`).neq('status', 'Pendente').order('data_inicio', { ascending: false }).limit(20);
+            if (error) { console.error('Erro ao procurar histórico:', error); statusHistorico.textContent = 'Erro ao carregar histórico.'; return; }
+            if (data.length === 0) {
+                statusHistorico.textContent = 'Nenhum agendamento no histórico.';
+            } else {
+                statusHistorico.textContent = '';
+                data.forEach(agendamento => {
+                    const linha = document.createElement('tr');
+                    linha.className = 'border-b';
+                    const hoje = new Date();
+                    const dataDevolucao = new Date(agendamento.data_fim_prevista);
+                    const isAtrasado = agendamento.status === 'Retirado' && hoje > dataDevolucao;
+                    const equipamentosHtml = agendamento.agendamento_equipamentos.map(item => `<li>${item.equipamentos?.nome || 'Equipamento não encontrado'}</li>`).join('');
+                    let acoesGestao = `<button data-action="details" class="text-gray-500 hover:text-gray-700" title="Ver Detalhes"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg></button>`;
+                    if (userRole === 'admin' || userRole === 'professor') {
+                        if (agendamento.status === 'Aprovado') { acoesGestao += `<button data-action="retirado" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">Registrar Retirada</button>`; } 
+                        else if (agendamento.status === 'Retirado') { acoesGestao += `<div class="flex flex-col space-y-1 items-center"><button data-action="devolvido" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 w-full">Devolvido</button><button data-action="avaria" class="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600 w-full">Com Avaria</button></div>`;}
+                        if (agendamento.tipo_uso === 'Uso Externo' && (agendamento.status === 'Aprovado' || agendamento.status === 'Retirado')) { acoesGestao += `<button data-action="gerar-termo-pdf" class="mt-1 px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 w-full">Gerar Termo (PDF)</button>`; }
+                    }
+                    linha.innerHTML = `
+                        <td class="p-3"><ul class="list-disc list-inside text-sm">${equipamentosHtml}</ul></td>
+                        <td class="p-3">${agendamento.nome_solicitante}</td>
+                        <td class="p-3">${new Date(agendamento.data_inicio).toLocaleDateString('pt-BR')} a ${new Date(agendamento.data_fim_prevista).toLocaleDateString('pt-BR')}</td>
+                        <td class="p-3"><div class="flex items-center justify-center"><span class="font-semibold">${agendamento.status}</span>${isAtrasado ? '<span class="ml-2 px-2 py-0.5 text-xs font-semibold text-white bg-red-500 rounded-full">ATRASADO</span>' : ''}</div></td>
+                        <td class="p-3 text-center"><div class="flex flex-col items-center space-y-1">${acoesGestao}</div></td>`;
+                    linha.dataset.agendamento = JSON.stringify(agendamento);
+                    tabelaCorpo.appendChild(linha);
+                });
+            }
+        }
+        
+        async function atualizarStatusAgendamento(agendamento, novoStatus) {
+            const { error: updateAgendamentoError } = await supabase.from('agendamentos').update({ status: novoStatus }).eq('id', agendamento.id);
+            if (updateAgendamentoError) { console.error('Erro ao atualizar status do agendamento:', updateAgendamentoError); alert('Ocorreu um erro.'); return; }
+            
+            let statusEquipamento = null;
+            
+            if (novoStatus === 'Retirado') {
+                statusEquipamento = 'Em Uso';
+            } 
+            else if (['Devolvido', 'Devolvido com avarias', 'Negado'].includes(novoStatus)) {
+                statusEquipamento = 'Disponível';
+            }
+            
+            if (statusEquipamento) {
+                const equipamentoIds = agendamento.agendamento_equipamentos.map(item => item.equipamentos?.id).filter(id => id);
+                if (equipamentoIds.length > 0) {
+                    const { error: updateEquipamentoError } = await supabase.from('equipamentos').update({ status: statusEquipamento }).in('id', equipamentoIds);
+                    if (updateEquipamentoError) { console.error('Erro ao atualizar status do equipamento:', updateEquipamentoError); }
+                }
+            }
+            await carregarTudo();
+        }
+
+        function carregarTudo(){
+            carregarEquipamentos();
+            carregarAgendamentos();
+            carregarHistorico();
+        }
+
+        async function carregarUsuarios() {
+            const tabelaCorpo = document.getElementById('tabela-usuarios').querySelector('tbody');
+            const statusUsuarios = document.getElementById('status-usuarios');
+            tabelaCorpo.innerHTML = '';
+            statusUsuarios.textContent = 'A carregar usuários...';
+            const { data, error } = await supabase.from('profiles').select('*');
+            if (error) {
+                console.error("Erro ao carregar usuários:", error);
+                statusUsuarios.textContent = "Erro ao carregar usuários: " + error.message;
+                return;
+            }
+            if (data.length === 0) {
+                statusUsuarios.textContent = "Nenhum perfil de usuário encontrado.";
+            } else {
+                statusUsuarios.textContent = '';
+                data.forEach(profile => {
+                    const linha = document.createElement('tr');
+                    linha.className = 'border-b';
+                    linha.innerHTML = `<td class="p-3">${profile.email}</td><td class="p-3">${profile.role}</td>`;
+                    tabelaCorpo.appendChild(linha);
+                });
+            }
+        }
+        
+        async function criarUsuario(event) {
+            event.preventDefault();
+            const form = document.getElementById('form-criar-usuario');
+            const statusMsg = document.getElementById('user-creation-status');
+            const botao = form.querySelector('button[type="submit"]');
+            botao.disabled = true;
+            statusMsg.textContent = 'A criar usuário...';
+            statusMsg.classList.remove('text-red-500', 'text-green-500');
+            const email = form.querySelector('#new-user-email').value;
+            const password = form.querySelector('#new-user-password').value;
+            const role = form.querySelector('#new-user-role').value;
+            const { data, error } = await supabase.functions.invoke('create-user', {
+                body: { email, password, role },
+            });
+            if (error) {
+                statusMsg.textContent = `Erro: ${error.message}`;
+                statusMsg.classList.add('text-red-500');
+            } else {
+                statusMsg.textContent = data.message;
+                statusMsg.classList.add('text-green-500');
+                form.reset();
+                await carregarUsuarios();
+            }
+            botao.disabled = false;
+        }
+
+        async function adicionarEquipamento(event) {
+            event.preventDefault(); 
+            const form = event.target;
+            const botaoSalvar = form.querySelector('button');
+            botaoSalvar.disabled = true;
+            botaoSalvar.textContent = 'A salvar...';
+            const { error } = await supabase.from('equipamentos').insert([{ nome: form.nome.value, modelo: form.modelo.value, numero_serie: form.numero_serie.value, data_ultima_calibracao: form.data_ultima_calibracao.value ? form.data_ultima_calibracao.value : null }]);
+            if (error) {
+                console.error('Erro ao adicionar equipamento:', error);
+                alert('Ocorreu um erro ao salvar. Verifique se o Nº de Série já existe ou se há algum problema de conexão.');
+            } else {
+                form.reset();
+                await carregarEquipamentos();
+            }
+            botaoSalvar.disabled = false;
+            botaoSalvar.textContent = 'Salvar Equipamento';
+        }
+
+        function abrirModalConfirmacao(id, nome) {
+            idParaExcluir = id;
+            document.getElementById('modal-texto').textContent = `Tem a certeza de que deseja excluir o equipamento "${nome}"?`;
+            document.getElementById('modal-confirmacao').classList.remove('hidden');
+        }
+        function fecharModalConfirmacao() {
+            idParaExcluir = null;
+            document.getElementById('modal-confirmacao').classList.add('hidden');
+        }
+        async function excluirEquipamentoConfirmado() {
+            if (!idParaExcluir) return;
+            const { error } = await supabase.from('equipamentos').delete().match({ id: idParaExcluir });
+            fecharModalConfirmacao();
+            if (error) { console.error('Erro ao excluir:', error); } else { await carregarEquipamentos(); }
+        }
+        function abrirModalEdicao(equipamento) {
+            idParaEditar = equipamento.id;
+            document.getElementById('edit-id').value = equipamento.id;
+            document.getElementById('edit-nome').value = equipamento.nome;
+            document.getElementById('edit-modelo').value = equipamento.modelo;
+            document.getElementById('edit-numero_serie').value = equipamento.numero_serie;
+            document.getElementById('edit-status').value = equipamento.status;
+            document.getElementById('edit-data_ultima_calibracao').value = equipamento.data_ultima_calibracao ? new Date(equipamento.data_ultima_calibracao).toISOString().split('T')[0] : '';
+            document.getElementById('modal-edicao').classList.remove('hidden');
+        }
+        function fecharModalEdicao() {
+            idParaEditar = null;
+            document.getElementById('modal-edicao').classList.add('hidden');
+        }
+        async function salvarAlteracoes(event) {
+            event.preventDefault();
+            if (!idParaEditar) return;
+            const form = document.getElementById('form-edicao');
+            const dados = {
+                nome: form.nome.value,
+                modelo: form.modelo.value,
+                numero_serie: form.numero_serie.value,
+                status: form.status.value,
+                data_ultima_calibracao: form.data_ultima_calibracao.value || null
+            };
+            const { error } = await supabase.from('equipamentos').update(dados).match({ id: idParaEditar });
+            fecharModalEdicao();
+            if (error) { console.error('Erro ao salvar alterações:', error); } 
+            else { await carregarEquipamentos(); }
+        }
+        
+        function abrirModalDetalhes(agendamento) {
+            const conteudo = document.getElementById('detalhes-conteudo');
+            const equipamentosHtml = agendamento.agendamento_equipamentos.map(item => `<li>${item.equipamentos?.nome || 'Equipamento não encontrado'} (${item.equipamentos?.modelo || 'N/A'})</li>`).join('');
+            conteudo.innerHTML = `
+                <p><strong>Equipamentos:</strong> <ul class="list-disc list-inside">${equipamentosHtml}</ul></p>
+                <p><strong>Solicitante:</strong> ${agendamento.nome_solicitante}</p>
+                <p><strong>Telefone:</strong> ${agendamento.telefone_solicitante}</p>
+                <p><strong>Grupo:</strong> ${agendamento.integrantes_grupo || 'N/A'}</p>
+                <p><strong>Motivo:</strong> ${agendamento.motivo_uso}</p>
+                <p><strong>Tipo de Uso:</strong> ${agendamento.tipo_uso}</p>
+                ${agendamento.local_destino ? `<p><strong>Local de Destino:</strong> ${agendamento.local_destino}</p>` : ''}
+                <hr class="my-2">
+                <p><strong>Retirada:</strong> ${new Date(agendamento.data_inicio).toLocaleString('pt-BR')}</p>
+                <p><strong>Devolução Prevista:</strong> ${new Date(agendamento.data_fim_prevista).toLocaleString('pt-BR')}</p>
+                <p><strong>Status Atual:</strong> <span class="font-bold">${agendamento.status}</span></p>
+            `;
+            document.getElementById('modal-detalhes').classList.remove('hidden');
+        }
+        function fecharModalDetalhes() {
+            document.getElementById('modal-detalhes').classList.add('hidden');
+        }
+        
+        const horarios = ["07:00-08:40", "08:50-10:30", "10:40-12:20", "13:50-15:30", "15:40-17:20", "17:20-18:10", "18:10-19:50", "19:50-20:40", "20:50-22:30"];
+        const diasSemana = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+        async function carregarAgendaAulas() {
+            const tabelaCorpo = document.getElementById('tabela-agenda-semanal').querySelector('tbody');
+            tabelaCorpo.innerHTML = '';
+            const { data: aulas, error } = await supabase.from('aulas_fixas').select('*');
+            if (error) { console.error("Erro ao carregar agenda:", error); return; }
+            horarios.forEach(hora => {
+                const linha = document.createElement('tr');
+                let celulas = `<td class="p-2 border font-mono">${hora}</td>`;
+                diasSemana.forEach((dia, index) => {
+                    const aulaAgendada = aulas.find(a => a.dia_semana === index && a.hora_inicio === hora.split('-')[0]);
+                    if (aulaAgendada) {
+                        celulas += `
+                            <td class="p-2 border bg-indigo-100 text-indigo-800 text-center cursor-pointer hover:bg-indigo-200"
+                                data-id="${aulaAgendada.id}" data-dia="${index}" data-hora="${hora.split('-')[0]}" data-turma="${aulaAgendada.turma}" data-professor="${aulaAgendada.nome_professor}">
+                                <strong>${aulaAgendada.turma}</strong><br>
+                                <span class="text-xs">${aulaAgendada.nome_professor}</span>
+                            </td>`;
+                    } else {
+                        celulas += `<td class="p-2 border text-center text-gray-400 cursor-pointer hover:bg-gray-100" data-dia="${index}" data-hora="${hora.split('-')[0]}">+</td>`;
+                    }
+                });
+                linha.innerHTML = celulas;
+                tabelaCorpo.appendChild(linha);
+            });
+        }
+        function abrirModalAgenda(id, dia, hora, turma = '', professor = '') {
+            document.getElementById('form-agenda').reset();
+            document.getElementById('agenda-id').value = id || '';
+            document.getElementById('agenda-dia_semana').value = dia;
+            document.getElementById('agenda-hora_inicio').value = hora;
+            document.getElementById('agenda-turma').value = turma;
+            document.getElementById('agenda-professor').value = professor;
+            document.getElementById('modal-agenda-botao-excluir').classList.toggle('hidden', !id);
+            document.getElementById('modal-agenda').classList.remove('hidden');
+        }
+        function fecharModalAgenda() {
+            document.getElementById('modal-agenda').classList.add('hidden');
+        }
+        async function salvarAula(event) {
+            event.preventDefault();
+            const form = event.target;
+            const id = form.querySelector('#agenda-id').value;
+            const dadosAula = {
+                dia_semana: parseInt(form.querySelector('#agenda-dia_semana').value, 10),
+                hora_inicio: form.querySelector('#agenda-hora_inicio').value,
+                hora_fim: horarios.find(h => h.startsWith(form.querySelector('#agenda-hora_inicio').value)).split('-')[1],
+                turma: form.querySelector('#agenda-turma').value,
+                nome_professor: form.querySelector('#agenda-professor').value,
+            };
+            let result;
+            if (id) { result = await supabase.from('aulas_fixas').update(dadosAula).eq('id', id); } 
+            else { result = await supabase.from('aulas_fixas').insert(dadosAula); }
+            if (result.error) { console.error("Erro ao salvar aula:", result.error); alert("Falha ao salvar a aula."); } 
+            else { fecharModalAgenda(); await carregarAgendaAulas(); }
+        }
+        async function excluirAula() {
+            const id = document.getElementById('agenda-id').value;
+            if (!id || !confirm("Tem certeza que deseja excluir esta aula da agenda?")) return;
+            const { error } = await supabase.from('aulas_fixas').delete().eq('id', id);
+            if (error) { console.error("Erro ao excluir aula:", error); alert("Falha ao excluir a aula."); } 
+            else { fecharModalAgenda(); await carregarAgendaAulas(); }
+        }
+        async function fazerLogout() {
+            await supabase.auth.signOut();
+            window.location.href = 'login.html';
+        }
+        
+        const tabs = { agendamentos: { button: document.getElementById('tab-agendamentos'), content: document.getElementById('tab-content-agendamentos') }, inventario: { button: document.getElementById('tab-inventario'), content: document.getElementById('tab-content-inventario') }, agendaAulas: { button: document.getElementById('tab-agenda-aulas'), content: document.getElementById('tab-content-agenda-aulas') }, usuarios: { button: document.getElementById('tab-usuarios'), content: document.getElementById('tab-content-usuarios') } };
+        function switchTab(activeTab) {
+            Object.values(tabs).forEach(tab => {
+                tab.button.classList.remove('border-indigo-500', 'text-indigo-600');
+                tab.button.classList.add('border-transparent', 'text-gray-500');
+                tab.content.classList.add('hidden');
+            });
+            tabs[activeTab].button.classList.add('border-indigo-500', 'text-indigo-600');
+            tabs[activeTab].button.classList.remove('border-transparent', 'text-gray-500');
+            tabs[activeTab].content.classList.remove('hidden');
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuthAndRole();
+            if (document.getElementById('main-content').classList.contains('hidden')) return; 
+            carregarTudo();
+            
+            Object.keys(tabs).forEach(tabName => {
+                tabs[tabName].button.addEventListener('click', () => {
+                    switchTab(tabName);
+                    if (tabName === 'agendaAulas') carregarAgendaAulas();
+                    if (tabName === 'usuarios') carregarUsuarios();
+                });
+            });
+
+            document.getElementById('form-cadastro').addEventListener('submit', adicionarEquipamento);
+            document.getElementById('form-criar-usuario').addEventListener('submit', criarUsuario);
+            document.getElementById('modal-botao-cancelar').addEventListener('click', fecharModalConfirmacao);
+            document.getElementById('modal-botao-confirmar').addEventListener('click', excluirEquipamentoConfirmado);
+            document.getElementById('form-edicao').addEventListener('submit', salvarAlteracoes);
+            document.getElementById('modal-edicao-botao-cancelar').addEventListener('click', fecharModalEdicao);
+            document.getElementById('botao-logout').addEventListener('click', fazerLogout);
+            document.getElementById('modal-detalhes-botao-fechar').addEventListener('click', fecharModalDetalhes);
+            document.getElementById('tabela-agenda-semanal').addEventListener('click', (event) => {
+                const celula = event.target.closest('td');
+                if (!celula || !celula.dataset.dia) return;
+                abrirModalAgenda(celula.dataset.id, celula.dataset.dia, celula.dataset.hora, celula.dataset.turma, celula.dataset.professor);
+            });
+            document.getElementById('form-agenda').addEventListener('submit', salvarAula);
+            document.getElementById('modal-agenda-botao-cancelar').addEventListener('click', fecharModalAgenda);
+            document.getElementById('modal-agenda-botao-excluir').addEventListener('click', excluirAula);
+            
+            document.getElementById('tabela-equipamentos').addEventListener('click', (event) => {
+                const botao = event.target.closest('button');
+                if (!botao) return;
+                const action = botao.dataset.action;
+                if (action === 'edit') {
+                    const equipamento = JSON.parse(botao.dataset.equipamento.replace(/&apos;/g, "'"));
+                    abrirModalEdicao(equipamento);
+                }
+                if (action === 'delete') {
+                    const id = botao.dataset.id;
+                    const nome = botao.dataset.nome.replace(/&apos;/g, "'");
+                    abrirModalConfirmacao(id, nome);
+                }
+            });
+
+            const tabelasAgendamento = [document.getElementById('tabela-agendamentos'), document.getElementById('tabela-historico')];
+            tabelasAgendamento.forEach(tabela => {
+                tabela.addEventListener('click', (event) => {
+                    const botao = event.target.closest('button');
+                    if (!botao) return;
+                    const agendamento = JSON.parse(botao.closest('tr').dataset.agendamento);
+                    const action = botao.dataset.action;
+                    
+                    if (action === 'gerar-termo-pdf') { gerarTermoPDF(agendamento); } 
+                    else if (action === 'details') { abrirModalDetalhes(agendamento); } 
+                    else if (action === 'approve') { atualizarStatusAgendamento(agendamento, 'Aprovado'); } 
+                    else if (action === 'deny') { atualizarStatusAgendamento(agendamento, 'Negado'); } 
+                    else if (action === 'retirado') { atualizarStatusAgendamento(agendamento, 'Retirado'); } 
+                    else if (action === 'devolvido') { atualizarStatusAgendamento(agendamento, 'Devolvido'); }
+                    else if (action === 'avaria') { atualizarStatusAgendamento(agendamento, 'Devolvido com avarias'); }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
