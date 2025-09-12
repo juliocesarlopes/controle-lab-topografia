@@ -6,13 +6,6 @@
     <title>Agendamento de Equipamentos - Laboratório de Topografia</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-        const supabaseUrl = 'https://ehgsgmrcwtxgvqkesmil.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoZ3NnbXJjd3R4Z3Zxa2VzbWlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MTE4MjMsImV4cCI6MjA3MjQ4NzgyM30.g8EAsvfSXsEfPaHOUlrcuk_HK1p_5Lot4YBQ5_mTBQM';
-        
-        window.supabase = createClient(supabaseUrl, supabaseKey);
-    </script>
     <style>
         .calendar-day { position: relative; }
         .day-indicator { position: absolute; bottom: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; }
@@ -58,7 +51,6 @@
 
     <div class="container mx-auto p-4 md:p-8">
         <header class="flex justify-between items-center mb-8 pb-4 border-b border-gray-200">
-            <!-- MODIFICAÇÃO: Logo adicionada aqui -->
             <div class="flex items-center gap-4">
                 <img src="https://i.postimg.cc/Cxs1MbYy/selo-115-anos-CEFET-RGB.png" alt="Logo CEFET-MG" class="h-16 w-auto">
                 <div>
@@ -144,13 +136,11 @@
                     <button type="submit" id="enviar-solicitacao-btn" class="w-full bg-gray-400 text-white font-bold py-2 px-4 rounded-md cursor-not-allowed" disabled>
                         Enviar Solicitação
                     </button>
-                </div>
-            </form>
-        </main>
+                </form>
+            </main>
         </div>
 
-    <script type="module">
-        const supabase = window.supabase;
+    <script>
         const formAgendamento = document.getElementById('form-agendamento');
         const listaEquipamentosDiv = document.getElementById('lista-equipamentos-checkbox');
         const mensagemSucesso = document.getElementById('mensagem-sucesso');
@@ -161,6 +151,9 @@
         const enviarBtn = document.getElementById('enviar-solicitacao-btn');
         const modal = document.getElementById('agenda-modal');
         const tooltip = document.getElementById('calendar-tooltip');
+        
+        const supabaseUrl = 'https://ehgsgmrcwtxgvqkesmil.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoZ3NnbXJjd3R4Z3Zxa2VzbWlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5MTE4MjMsImV4cCI6MjA3MjQ4NzgyM30.g8EAsvfSXsEfPaHOUlrcuk_HK1p_5Lot4YBQ5_mTBQM';
 
         function setupAgendaModal(aulas, agendamentos) {
             const openBtn = document.getElementById('open-agenda-btn');
@@ -246,17 +239,24 @@
         }
         
         async function carregarDadosAgenda() {
-            const hoje = new Date().toISOString();
-            const [aulasResult, agendamentosResult] = await Promise.all([
-                supabase.from('aulas_fixas').select('*'),
-                supabase.from('agendamentos').select('data_inicio, data_fim_prevista, agendamento_equipamentos(equipamentos(nome))')
-                    .in('status', ['Aprovado', 'Retirado']).gte('data_fim_prevista', hoje).order('data_inicio', { ascending: true })
-            ]);
-            const aulas = aulasResult.data || [];
-            const agendamentos = agendamentosResult.data || [];
-            if (aulasResult.error) console.error("Erro ao buscar aulas:", aulasResult.error);
-            if (agendamentosResult.error) console.error("Erro ao buscar agendamentos:", agendamentosResult.error);
-            setupAgendaModal(aulas, agendamentos);
+            try {
+                const response = await fetch(`${supabaseUrl}/functions/v1/get-agenda-data`, {
+                    headers: { 'Authorization': `Bearer ${supabaseAnonKey}` }
+                });
+                const agendaData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(agendaData.error || 'Erro ao carregar dados da agenda.');
+                }
+                
+                const aulas = agendaData.aulas || [];
+                const agendamentos = agendaData.agendamentos || [];
+
+                setupAgendaModal(aulas, agendamentos);
+            } catch (error) {
+                console.error("Erro ao carregar dados da agenda:", error);
+                mostrarErro("Não foi possível carregar a agenda. Tente novamente.");
+            }
         }
 
         function mostrarErro(mensagem) {
@@ -283,18 +283,25 @@
             blocoEquipamentos.classList.remove('hidden');
 
             try {
-                const { data: agendamentosConflitantes, error: conflitoError } = await supabase
-                    .from('agendamentos')
-                    .select('agendamento_equipamentos(equipamento_id)')
-                    .in('status', ['Aprovado', 'Retirado'])
-                    .lte('data_inicio', dataFim) 
-                    .gte('data_fim_prevista', dataInicio);
-                
-                if (conflitoError) throw conflitoError;
+                const responseEquipamentos = await fetch(`${supabaseUrl}/functions/v1/get-equipamentos`, {
+                    headers: { 'Authorization': `Bearer ${supabaseAnonKey}` }
+                });
+                const todosDisponiveis = await responseEquipamentos.json();
 
+                if (!responseEquipamentos.ok) {
+                    throw new Error(todosDisponiveis.error || 'Erro ao carregar dados de equipamentos.');
+                }
+                
+                const responseAgendamentos = await fetch(`${supabaseUrl}/rest/v1/agendamentos?select=agendamento_equipamentos(equipamento_id)&status=in.%28Aprovado%2CRetirado%29&data_inicio=lte.${dataFim}&data_fim_prevista=gte.${dataInicio}`, {
+                     headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${supabaseAnonKey}` }
+                });
+                const agendamentosConflitantes = await responseAgendamentos.json();
+                
+                if (!responseAgendamentos.ok) {
+                    throw new Error(agendamentosConflitantes.error || agendamentosConflitantes.message || 'Erro ao verificar agendamentos.');
+                }
+                
                 const idsIndisponiveis = agendamentosConflitantes.flatMap(ag => ag.agendamento_equipamentos).map(item => item.equipamento_id);
-                const { data: todosDisponiveis, error: equipError } = await supabase.from('equipamentos').select('id, nome, modelo').eq('status', 'Disponível');
-                if (equipError) throw equipError;
                 
                 const equipamentosRealmenteDisponiveis = todosDisponiveis.filter(equip => !idsIndisponiveis.includes(equip.id));
 
@@ -339,19 +346,31 @@
                 
                 if (equipamentosSelecionados.length === 0) { throw new Error('Por favor, selecione pelo menos um equipamento.'); }
                 
-                const { data, error } = await supabase.rpc('criar_agendamento_com_equipamentos', {
-                    equipamento_ids: equipamentosSelecionados,
-                    nome_solicitante: formAgendamento.nome_solicitante.value,
-                    telefone_solicitante: formAgendamento.telefone_solicitante.value,
-                    integrantes_grupo: formAgendamento.integrantes_grupo.value,
-                    motivo_uso: formAgendamento.motivo_uso.value,
-                    tipo_uso: formAgendamento.tipo_uso.value,
-                    local_destino: formAgendamento.local_destino.value || null,
-                    data_inicio: new Date(formAgendamento.data_inicio.value).toISOString(),
-                    data_fim_prevista: new Date(formAgendamento.data_fim_prevista.value).toISOString()
+                const response = await fetch(`${supabaseUrl}/rest/v1/rpc/criar_agendamento_com_equipamentos`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': supabaseAnonKey, 
+                        'Authorization': `Bearer ${supabaseAnonKey}`
+                    },
+                    body: JSON.stringify({
+                        equipamento_ids: equipamentosSelecionados,
+                        nome_solicitante: formAgendamento.nome_solicitante.value,
+                        telefone_solicitante: formAgendamento.telefone_solicitante.value,
+                        integrantes_grupo: formAgendamento.integrantes_grupo.value,
+                        motivo_uso: formAgendamento.motivo_uso.value,
+                        tipo_uso: formAgendamento.tipo_uso.value,
+                        local_destino: formAgendamento.local_destino.value || null,
+                        data_inicio: new Date(formAgendamento.data_inicio.value).toISOString(),
+                        data_fim_prevista: new Date(formAgendamento.data_fim_prevista.value).toISOString()
+                    })
                 });
 
-                if (error) { throw error; } 
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || data.error || 'Erro ao enviar a solicitação.');
+                }
                 
                 mensagemSucesso.classList.remove('hidden');
                 formAgendamento.reset();
